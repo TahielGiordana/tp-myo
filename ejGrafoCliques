@@ -1,0 +1,10 @@
+c Grafo que contiene dos cliques, una de tamamaño 4 y otra de tamaño 3.
+p edge 5 8
+e 1 2
+e 1 4
+e 1 5
+e 2 3
+e 2 4
+e 2 5
+e 3 4
+e 4 5
