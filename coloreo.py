@@ -31,6 +31,61 @@ def parserDimacs(path):
             n = 0
     return n, aristas
 
+# Coloreo Tradicional
+def getColoreoTradicional(n, aristas, max_colors=10):
+    model = Model("ColoreoTradicional")
+    model.setParam("display/verblevel", 0)
+    x={}
+    y={}
+    for v in range(n):
+        for c in range(max_colors):
+            x[v,c] = model.addVar(vtype="B", name=f"x_{v}_{c}")
+    for c in range(max_colors):
+        y[c] = model.addVar(vtype="B", name=f"y_{c}")
+
+    # Cada nodo debe tener asignado un único color
+    for v in range(n):
+        model.addCons(sum(x[v,c] for c in range(max_colors)) == 1)
+
+    # Dos nodos adyascentes no pueden tener el mismo color 
+    for(u,v) in aristas:
+        for c in range(max_colors):
+            model.addCons(x[u,c] + x[v,c] <= 1)
+    
+    # Relacion entre las variables x e y
+    for v in range(n):
+        for c in range(max_colors):
+            model.addCons(x[v,c] <= y[c])
+
+    # Buscamos minimizar la cantidad de colores utilizados
+    model.setObjective(sum(y[c] for c in range(max_colors)), "minimize")
+
+    model.optimize()
+
+    sol = model.getBestSol()
+    k = [c for c in range(max_colors) if sol and model.getSolVal(sol,y[c]) > 0.5]
+
+    status = str(model.getStatus()).lower() if model.getStatus() is not None else ""
+
+    if not sol:
+        return None, status
+
+    # Construir solución
+    color_asignado = {}
+    for v in range(n):
+        for c in range(max_colors):
+            if sol[x[v, c]] > 0.5:
+                color_asignado[v] = c
+                break
+
+    is_optimal = 'optimal' in status
+    is_infeasible = 'infeasible' in status
+
+    print("Coloreo Tradicional")
+
+    return color_asignado, k, len(k), ("optimal" if is_optimal else ("feasible" if not is_infeasible else "infeasible"))
+    
+
 def getColoreoConjEstables(n, aristas, max_colors=None):
     """
     Modelo de coloreo de grafos basado en conjuntos estables.
@@ -78,8 +133,11 @@ def getColoreoConjEstables(n, aristas, max_colors=None):
     model.optimize()
 
     sol = model.getBestSol()
+
+    status = str(model.getStatus()).lower() if model.getStatus() is not None else ""
+
     if not sol:
-        return None
+        return None, status
 
     # Construir solución
     color_asignado = {}
@@ -90,7 +148,13 @@ def getColoreoConjEstables(n, aristas, max_colors=None):
                 break
 
     usados = [c for c in range(max_colors) if sol[y[c]] > 0.5]
-    return color_asignado, usados, len(usados)
+
+    is_optimal = 'optimal' in status
+    is_infeasible = 'infeasible' in status
+
+    print("Coloreo por Conjuntos Estables")
+
+    return color_asignado, usados, len(usados), ("optimal" if is_optimal else ("feasible" if not is_infeasible else "infeasible"))
 
 
 def getColoreoRepresentantes(n, aristas):
@@ -133,13 +197,17 @@ def getColoreoRepresentantes(n, aristas):
     model.optimize()
 
     sol = model.getBestSol()
+
+    status = str(model.getStatus()).lower() if model.getStatus() is not None else ""
+
     if not sol:
-        return None
+        return None, status
+    
+    # Construir solución
 
     colores = {}
     clases_color = {}
 
-    # Asignar representante a cada vértice
     for v in range(n):
         for u in Ntil[v]:
             if sol[x[u, v]] > 0.5:
@@ -148,25 +216,51 @@ def getColoreoRepresentantes(n, aristas):
                 break
 
     k = sum(sol[x[u, u]] > 0.5 for u in range(n))
-    return colores, clases_color, k
+
+    is_optimal = 'optimal' in status
+    is_infeasible = 'infeasible' in status
+
+    print("Coloreo por Representantes")
+
+    return colores, clases_color, k, ("optimal" if is_optimal else ("feasible" if not is_infeasible else "infeasible"))
 
 def main():
     parser = argparse.ArgumentParser(description="Coloreo")
     parser.add_argument("input", help="Grafo en formato DIMACS")
+    parser.add_argument("--out", "-o", default=None, help="Fichero adicional para guardar la salida (opcional)")
     args = parser.parse_args()
 
     n, aristas = parserDimacs(args.input)
     print(f"Vertices: {n}, Aristas: {len(aristas)}")
 
-    colores, clases_color, k = getColoreoConjEstables(n, aristas)
+    #colores, clases_color, k, status = getColoreoTradicional(n, aristas)
+    #colores, clases_color, k, status = getColoreoRepresentantes(n, aristas)
+    colores, clases_color, k, status = getColoreoConjEstables(n, aristas)
 
+    if (status == "optimal"):
+        print(f"s optimal {k}")
+        salida= f"s optimal {k}\n"
+    elif (status == "feasible"):
+        print(f"s feasible {k}")
+        salida= f"s feasible {k}\n"
+    else:
+        print(f"s unsatisfiable")
+        salida= f"s unsatisfiable\n"
+    """
     print("Color de cada vértice:")
     for v in range(n):
         print(f"  Vértice {v} → Color {colores[v]}")
 
     print(f"\nColores usados: {clases_color}")
     print(f"Número mínimo de colores: {k}")
+    """
+    if args.out:
+        with open(args.out, "w") as f:
+            f.write(salida)
+            for v in range(n):
+                f.write(f"v {v} {colores[v]}\n")
 
+    """    
     colores, clases_color, k = getColoreoRepresentantes(n, aristas)
 
     print("Color (representante) asignado a cada vértice:")
@@ -178,6 +272,6 @@ def main():
         print(f"  Color {rep}: {grupo}")
 
     print(f"\nNúmero mínimo de colores usados: {k}")
-
+    """
 if __name__ == "__main__":
     main()
