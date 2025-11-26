@@ -4,9 +4,9 @@ import parserDimacs
 #S=Conj.Estable, F=Resto de vertices, X=Vertices excluidos
 def mwssRecursion(S,F,X, adj, maxIt):
 
-    print(F)
+    #print(F)
     relevant_nodes = dict({key:value for key,value in F.items() if value > 0.0})
-    print(f"RELEVANTE NODES: {relevant_nodes}")
+    #print(f"RELEVANTE NODES: {relevant_nodes}")
     bestS = []
     bestW = 0.0
     n_it = 0
@@ -24,25 +24,29 @@ def mwssRecursion(S,F,X, adj, maxIt):
 
         pi_S = auxFuncs.weightOfSet(S)
         pi_F = auxFuncs.weightOfSet(relevant_nodes)
-        print(f"S: {S}")
-        print(f"F: {relevant_nodes}")
-        print(f"PI_S: {pi_S}")
-        print(f"PI_F: {pi_F}")
+        #print(f"S: {S}")
+        #print(f"F: {relevant_nodes}")
+        #print(f"PI_S: {pi_S}")
+        #print(f"PI_F: {pi_F}")
 
-        if pi_S > 1.0:
+        if pi_S > bestW:
             bestS = list(S)
             bestW = pi_S
-            return True
+
+        # Algoritmo 2
+        ub_restante = cliqueCover(relevant_nodes, adj)
+        if pi_S + ub_restante <= bestW + 1e-15:
+            return
 
         # Si f ya está vacío retornamos
         if not relevant_nodes:
-            print("Ya no hay restantes")
+            #print("Ya no hay restantes")
             return False
     
-        # Elegimos el vértice de mayor peso
+        # Elegimos el vértice de mayor peso (Branching)
         v = max(relevant_nodes.items(), key=lambda item:item[1])
-        print(f"V de mayor Peso: {v[0]}")
-        print(f"Peso de V: {v[1]}")
+        #print(f"V de mayor Peso: {v[0]}")
+        #print(f"Peso de V: {v[1]}")
 
         S2 = dict(S)
         S2[v[0]] = v[1]
@@ -51,11 +55,11 @@ def mwssRecursion(S,F,X, adj, maxIt):
 
         # Nuevo F2 = F - {v} - N(v)
         F2 = dict(relevant_nodes)
-        print(f"F2 Actual{F2}")
+        #print(f"F2 Actual{F2}")
         F2.pop(v[0])
-        print(f"F2 Despues{F2}")
+        #print(f"F2 Despues{F2}")
         for u in adj[v[0]]:
-            print(f"Vecino de {v[0]} : {u}")
+            #print(f"Vecino de {v[0]} : {u}")
             F2.pop(u,0)
         
         #print(f"F2: {F2}")
@@ -81,6 +85,46 @@ def mwssRecursion(S,F,X, adj, maxIt):
     print(f"Mejor w: {bestW}")
             
     return tuple(sorted(bestS)),bestW
+
+def cliqueCover(F, adj):
+    pesos_actuales = {k:v for k,v in F.items() if v > 1e-5}
+    total_bound = 0.0
+    epsilon = 1e-5
+
+    safe_iter = 0
+    max_safe_iter = len(F)*2
+    while pesos_actuales:
+        safe_iter += 1
+        if safe_iter > max_safe_iter:
+            break
+        # Obtenemos v con menor peso positivo
+        min_v = min(pesos_actuales, key=pesos_actuales.get)
+        min_w = pesos_actuales[min_v]
+
+        # Buscamos un clique max K que contenga a v
+        K = {min_v}
+
+        vecinos = [n for n in adj.get(min_v, []) if n in pesos_actuales]
+        vecinos.sort(key=lambda x:len(adj.get(x,[])), reverse=True)
+
+        for candidato in vecinos:
+            if all(candidato in adj.get(nodo,[]) for nodo in K):
+                K.add(candidato)
+
+        # Actualizamos los pesos
+        total_bound += min_w
+
+        nodos_a_eliminar = []
+        for u in K:
+            pesos_actuales[u] -= min_w
+
+            if pesos_actuales[u] <= epsilon:
+                nodos_a_eliminar.append(u)
+
+        for nodo in nodos_a_eliminar:
+            del pesos_actuales[nodo]
+
+    return total_bound
 
 if __name__ == "__main__":
     #n_nodos, n_aristas, adj = parserDimacs.parserDimacs("coloreoCG/grafoTest")
