@@ -133,6 +133,65 @@ def greedy3(nodes_weights,adj):
     print(f"Greddy3: {sorted(S)}")
     return tuple(sorted(S)), weight
 
+def improveStableSet(S,nodes_weights,adj):
+    S_actual = set(S)
+    #print(f"S Actual: {S_actual}")
+    improved = True
+
+    while improved:
+        improved = False
+
+        peso_actual = sum(nodes_weights.get(v,0) for v in S_actual)
+        #print(f"Peso Actual: {peso_actual}")
+
+        # Sacamos un nodo de S y agregamos sus vecinos
+        list_S = list(S_actual)
+        for u in list_S:
+            #print(f"U: {u}")
+            peso_u = nodes_weights.get(u,0)
+            #print(f"Peso de U: {peso_u}")
+
+            vecinos_u = set(adj.get(u,[]))
+            #print(f"Vecinos de U: {vecinos_u}")
+
+            candidatos = []
+            S_minus_u = S_actual - {u}
+
+            for v in vecinos_u:
+                compatible = True
+                for s_node in S_minus_u:
+                    if s_node in adj.get(v,[]):
+                        compatible = False
+                        break
+                if compatible:
+                    candidatos.append(v)
+
+            candidatos.sort(key=lambda x: nodes_weights.get(x,0), reverse=True)
+
+            added_nodes = []
+            added_weight = 0
+
+            temp_added = set()
+            for cand in candidatos:
+                is_indep = True
+                for i in temp_added:
+                    if i in adj.get(cand, []):
+                        is_indep = False
+                        break
+                if is_indep:
+                    temp_added.add(cand)
+                    added_weight+=nodes_weights.get(cand,0)
+
+            if added_weight > peso_u:
+                S_actual.remove(u)
+                S_actual.update(temp_added)
+                improved = True
+                break
+            
+            #print(f"Candidatos: {candidatos}")
+    
+    return tuple(sorted(S_actual)), sum(nodes_weights.get(v,0) for v in S_actual)
+
 if __name__ == "__main__":
     n_nodos, n_aristas, adj = parserDimacs.parserDimacs("coloreoCG/grafoTest")
     print(f"Cantidad de Nodos={n_nodos}")
@@ -143,12 +202,16 @@ if __name__ == "__main__":
     S = {}
     S[1]=1.0
     S[2]=1.0
-    S[3]=2.0
-    S[4]=4.0
-    S[5]=0.0
+    S[3]=1.0
+    S[4]=1.0
+    S[5]=1.0
     S[6]=1.0
-    S[7]=0.0
-    S[8]=0.0
-    print(greedy1(S, adj))
+    S[7]=1.0
+    S[8]=1.0
+    #print(greedy2(S, adj))
+    #S2, w2 = greedy2(S,adj)
+    S2 = list([1,3,5])
+    print(f"Set Mejorado: {improveStableSet(S2,S,adj)}")
+
     #gr.greedy2(n_nodos, adj, [2,3,7,6,2,3,4,5])
     #gr.greedy3(n_nodos, adj, [2,3,7,6,2,3,4,5])
